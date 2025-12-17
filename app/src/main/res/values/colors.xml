@@ -1,0 +1,8 @@
+<resources>
+    <color name="primary">#2563EB</color>
+    <color name="onPrimary">#FFFFFF</color>
+    <color name="secondary">#6B7280</color>
+    <color name="background">#F5F5F5</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="error">#EF4444</color>
+</resources>
