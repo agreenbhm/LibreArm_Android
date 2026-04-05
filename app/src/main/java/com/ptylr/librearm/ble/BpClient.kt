@@ -327,10 +327,26 @@ class BpClient(
 
     private fun finalizeIfNeeded() {
         val reading = _state.value.lastReading ?: return
-        if (!sessionActive || hasFiredFinal || reading.dia <= 0) return
+        if (!sessionActive || hasFiredFinal) return
+
+        // Validate the reading using strict physiological checks
+        if (!isValidReading(reading)) {
+            // If dia is still 0, this is just a partial/intermediate notification — wait for more data
+            if (reading.dia <= 0) return
+            // Otherwise, the reading is complete but invalid
+            sessionActive = false
+            hasFiredFinal = true
+            _state.update {
+                it.copy(
+                    status = "Invalid reading (${reading.sys.toInt()}/${reading.dia.toInt()}). Check cuff fit and try again.",
+                    isMeasuring = false
+                )
+            }
+            return
+        }
 
         if (_state.value.measurementMode == MeasurementMode.AVERAGE3) {
-            if (isPlausible(reading)) accumulatedReadings.add(reading)
+            accumulatedReadings.add(reading)
 
             if (remainingRuns > 1) {
                 remainingRuns -= 1
@@ -382,10 +398,10 @@ class BpClient(
     }
 
     private fun average(readings: List<BpReading>): BpReading {
-        val valid = readings.filter { isPlausible(it) }
+        val valid = readings.filter { isValidReading(it) }
         if (valid.isEmpty()) {
             val last = _state.value.lastReading
-            if (last != null && isPlausible(last)) return last
+            if (last != null && isValidReading(last)) return last
             return BpReading(0.0, 0.0, null, null)
         }
 
@@ -402,9 +418,28 @@ class BpClient(
         return BpReading(sys = sysAvg, dia = diaAvg, map = mapAvg, hr = hrAvg)
     }
 
-    private fun isPlausible(reading: BpReading): Boolean {
+    /**
+     * Validates a blood pressure reading for physiological plausibility.
+     * Mirrors the iOS BPClient.isValidReading() validation rules.
+     */
+    private fun isValidReading(reading: BpReading): Boolean {
+        // Diastolic > 0 indicates a complete reading (not a partial/intermediate notification)
+        if (reading.dia <= 0) return false
+
+        // Values must be finite (filters SFLOAT NaN = 0x07FF and Infinity)
         if (!reading.sys.isFinite() || !reading.dia.isFinite()) return false
-        return reading.sys in 60.0..260.0 && reading.dia in 40.0..160.0
+
+        // Physiologically plausible ranges
+        if (reading.sys !in 60.0..260.0) return false
+        if (reading.dia !in 40.0..160.0) return false
+
+        // Systolic must exceed diastolic (always true in physiology)
+        if (reading.sys <= reading.dia) return false
+
+        // Pulse pressure (sys - dia) must be reasonable
+        if ((reading.sys - reading.dia) > 120) return false
+
+        return true
     }
 
     companion object {
