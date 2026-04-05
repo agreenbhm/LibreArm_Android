@@ -58,9 +58,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import com.ptylr.librearm.data.ReadingEntity
 import com.ptylr.librearm.health.HealthConnectManager
 import com.ptylr.librearm.model.BpState
 import com.ptylr.librearm.model.MeasurementMode
+import com.ptylr.librearm.ui.history.HistoryScreen
 import com.ptylr.librearm.ui.theme.LibreArmTheme
 import java.util.Date
 import kotlin.math.abs
@@ -134,9 +136,17 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                var currentScreen by rememberSaveable { mutableStateOf("measurement") }
+                val historyReadings by viewModel.readingHistory.collectAsState()
+
                 LaunchedEffect(autoSaveToHealth, healthGranted) {
                     viewModel.setOnFinalReading { reading ->
-                        if (autoSaveToHealth && healthGranted) {
+                        // Save to local database always
+                        val savedToHealth = autoSaveToHealth && healthGranted
+                        viewModel.saveReading(reading, state.measurementMode, savedToHealth)
+
+                        // Save to Health Connect if enabled
+                        if (savedToHealth) {
                             lifecycleScope.launch {
                                 when (healthManager.saveReading(reading, Date().time)) {
                                     HealthConnectManager.SaveResult.Saved -> Unit
@@ -162,7 +172,27 @@ class MainActivity : ComponentActivity() {
 
                 KeepScreenOn(enabled = state.isMeasuring)
 
-                LibreArmScreen(
+                when (currentScreen) {
+                    "history" -> HistoryScreen(
+                        readings = historyReadings,
+                        onDelete = { viewModel.deleteReading(it) },
+                        onBack = { currentScreen = "measurement" },
+                        onExport = {
+                            lifecycleScope.launch {
+                                val csv = viewModel.exportCsv()
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/csv"
+                                    putExtra(Intent.EXTRA_TEXT, csv)
+                                    putExtra(Intent.EXTRA_SUBJECT, "BP Readings.csv")
+                                }
+                                startActivity(Intent.createChooser(intent, "Share readings"))
+                            }
+                        }
+                    )
+                    else -> Unit
+                }
+
+                if (currentScreen == "measurement") LibreArmScreen(
                     state = state,
                     autoSaveToHealth = autoSaveToHealth,
                     healthAuthorized = healthGranted,
@@ -211,7 +241,8 @@ class MainActivity : ComponentActivity() {
                             runCatching { startActivity(healthManager.installIntent()) }
                         }
                     },
-                    onOpenLink = { openUrl(it) }
+                    onOpenLink = { openUrl(it) },
+                    onHistoryClick = { currentScreen = "history" }
                 )
             }
         }
@@ -243,7 +274,8 @@ private fun LibreArmScreen(
     onMeasurementModeChange: (MeasurementMode) -> Unit,
     onDelayChange: (Int) -> Unit,
     onRequestHealthPermissions: () -> Unit,
-    onOpenLink: (String) -> Unit
+    onOpenLink: (String) -> Unit,
+    onHistoryClick: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -262,7 +294,16 @@ private fun LibreArmScreen(
                 contentDescription = null,
                 modifier = Modifier.height(96.dp)
             )
-            Text(text = "LibreArm", style = MaterialTheme.typography.titleLarge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(text = "LibreArm", style = MaterialTheme.typography.titleLarge)
+                TextButton(onClick = onHistoryClick) {
+                    Text("History")
+                }
+            }
             Text(
                 text = state.status,
                 style = MaterialTheme.typography.bodyMedium,

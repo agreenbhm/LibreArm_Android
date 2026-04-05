@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -75,6 +76,12 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.6.2")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.health.connect:connect-client:1.1.0-alpha06")
+
+    // Room database
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
