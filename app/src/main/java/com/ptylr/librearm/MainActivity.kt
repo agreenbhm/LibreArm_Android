@@ -269,6 +269,16 @@ private fun LibreArmScreen(
                 color = MaterialTheme.colorScheme.secondary,
                 textAlign = TextAlign.Center
             )
+            Text(
+                text = state.batteryStatusLine,
+                style = MaterialTheme.typography.bodySmall,
+                color = when {
+                    state.batteryLevel != null && state.batteryLevel <= 10 -> MaterialTheme.colorScheme.error
+                    state.batteryLevel != null && state.batteryLevel <= 20 -> Color(0xFFFF9800)
+                    else -> MaterialTheme.colorScheme.secondary
+                },
+                textAlign = TextAlign.Center
+            )
 
             state.lastReading?.let { reading ->
                 Card(
@@ -315,7 +325,8 @@ private fun LibreArmScreen(
             Button(
                 onClick = onStartStop,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = state.canMeasure || state.isMeasuring
+                enabled = (state.canMeasure || state.isMeasuring) &&
+                    (state.batteryLevel == null || state.batteryLevel > 10 || state.isMeasuring)
             ) {
                 Text(if (state.isMeasuring) "Stop Measurement" else "Start Measurement")
             }
