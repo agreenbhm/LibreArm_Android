@@ -62,6 +62,9 @@ class BpClient(
     private var hasFiredFinal = false
     private var remainingRuns = 0
     private val accumulatedReadings = mutableListOf<BpReading>()
+    private var lastCommand: ByteArray? = null
+    private var reconnectAttempts = 0
+    private val maxReconnectAttempts = 3
 
     private val completionDebounceSeconds = 1.5
 
@@ -199,6 +202,7 @@ class BpClient(
 
     @SuppressLint("MissingPermission")
     private fun writeControl(command: ByteArray) {
+        lastCommand = command
         val char = controlCharacteristic ?: return
         gatt?.writeCharacteristic(
             char,
@@ -223,9 +227,11 @@ class BpClient(
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 this@BpClient.gatt = gatt
+                reconnectAttempts = 0
                 _state.update { it.copy(isConnected = true, status = "Connected — discovering…") }
                 gatt.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                val wasMeasuring = _state.value.isMeasuring
                 measurementCharacteristic = null
                 controlCharacteristic = null
                 _state.update {
@@ -233,8 +239,38 @@ class BpClient(
                         isConnected = false,
                         canMeasure = false,
                         isMeasuring = false,
-                        status = "Disconnected"
+                        status = if (wasMeasuring) "Disconnected during measurement" else "Disconnected"
                     )
+                }
+                // Attempt auto-reconnection with exponential backoff
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++
+                    val delayMs = 2000L * (1 shl (reconnectAttempts - 1)) // 2s, 4s, 8s
+                    scope.launch {
+                        delay(delayMs)
+                        _state.update { it.copy(status = "Reconnecting ($reconnectAttempts/$maxReconnectAttempts)…") }
+                        startConnect()
+                    }
+                } else {
+                    reconnectAttempts = 0
+                    _state.update { it.copy(status = "Disconnected. Tap retry to reconnect.") }
+                }
+            }
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS && characteristic.uuid == control) {
+                // Fallback: retry with WRITE_TYPE_NO_RESPONSE if supported
+                val cmd = lastCommand ?: return
+                if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0) {
+                    gatt.writeCharacteristic(
+                        characteristic,
+                        cmd,
+                        BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    )
+                } else {
+                    _state.update { it.copy(status = "Write failed. Try again.", isMeasuring = false) }
                 }
             }
         }
