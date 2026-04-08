@@ -50,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -61,6 +62,7 @@ import androidx.lifecycle.lifecycleScope
 import com.ptylr.librearm.health.HealthConnectManager
 import com.ptylr.librearm.model.BpState
 import com.ptylr.librearm.model.MeasurementMode
+import com.ptylr.librearm.ui.graph.HypertensionGraph
 import com.ptylr.librearm.ui.theme.LibreArmTheme
 import java.util.Date
 import kotlin.math.abs
@@ -308,6 +310,42 @@ private fun LibreArmScreen(
                                 }
                             }
                         }
+                        HypertensionGraph(
+                            systolic = reading.sys,
+                            diastolic = reading.dia,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                        )
+                    }
+                }
+            }
+
+            // Show placeholder graph when no reading exists
+            if (state.lastReading == null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "No reading yet",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        HypertensionGraph(
+                            systolic = 120.0,
+                            diastolic = 80.0,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .alpha(0.3f)
+                        )
                     }
                 }
             }
