@@ -25,7 +25,6 @@ import com.ptylr.librearm.model.BpState
 import com.ptylr.librearm.model.MeasurementMode
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import kotlin.math.pow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -63,6 +62,9 @@ class BpClient(
     private var hasFiredFinal = false
     private var remainingRuns = 0
     private val accumulatedReadings = mutableListOf<BpReading>()
+    private var lastCommand: ByteArray? = null
+    private var reconnectAttempts = 0
+    private val maxReconnectAttempts = 3
 
     private val completionDebounceSeconds = 1.5
 
@@ -200,6 +202,7 @@ class BpClient(
 
     @SuppressLint("MissingPermission")
     private fun writeControl(command: ByteArray) {
+        lastCommand = command
         val char = controlCharacteristic ?: return
         gatt?.writeCharacteristic(
             char,
@@ -224,9 +227,11 @@ class BpClient(
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 this@BpClient.gatt = gatt
+                reconnectAttempts = 0
                 _state.update { it.copy(isConnected = true, status = "Connected — discovering…") }
                 gatt.discoverServices()
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                val wasMeasuring = _state.value.isMeasuring
                 measurementCharacteristic = null
                 controlCharacteristic = null
                 _state.update {
@@ -234,8 +239,38 @@ class BpClient(
                         isConnected = false,
                         canMeasure = false,
                         isMeasuring = false,
-                        status = "Disconnected"
+                        status = if (wasMeasuring) "Disconnected during measurement" else "Disconnected"
                     )
+                }
+                // Attempt auto-reconnection with exponential backoff
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++
+                    val delayMs = 2000L * (1 shl (reconnectAttempts - 1)) // 2s, 4s, 8s
+                    scope.launch {
+                        delay(delayMs)
+                        _state.update { it.copy(status = "Reconnecting ($reconnectAttempts/$maxReconnectAttempts)…") }
+                        startConnect()
+                    }
+                } else {
+                    reconnectAttempts = 0
+                    _state.update { it.copy(status = "Disconnected. Tap retry to reconnect.") }
+                }
+            }
+        }
+
+        @SuppressLint("MissingPermission")
+        override fun onCharacteristicWrite(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS && characteristic.uuid == control) {
+                // Fallback: retry with WRITE_TYPE_NO_RESPONSE if supported
+                val cmd = lastCommand ?: return
+                if (characteristic.properties and BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE != 0) {
+                    gatt.writeCharacteristic(
+                        characteristic,
+                        cmd,
+                        BluetoothGattCharacteristic.WRITE_TYPE_NO_RESPONSE
+                    )
+                } else {
+                    _state.update { it.copy(status = "Write failed. Try again.", isMeasuring = false) }
                 }
             }
         }
@@ -289,30 +324,9 @@ class BpClient(
     }
 
     private fun parseMeasurement(data: ByteArray) {
-        if (data.size < 7) return
-
-        fun sfloat(lo: Byte, hi: Byte): Double {
-            val raw = (hi.toInt() and 0xFF shl 8) or (lo.toInt() and 0xFF)
-            val mantissa = raw and 0x0FFF
-            val exponent = raw shr 12
-            val m = if (mantissa >= 0x0800) mantissa - 0x1000 else mantissa
-            return m * 10.0.pow(exponent.toDouble())
-        }
-
-        val flags = data[0].toInt()
-        val sys = sfloat(data[1], data[2])
-        val dia = sfloat(data[3], data[4])
-        val map = sfloat(data[5], data[6])
-
-        var idx = 7
-        if (flags and 0x02 != 0) idx += 7 // timestamp present
-
-        var hr: Double? = null
-        if (flags and 0x04 != 0 && data.size >= idx + 2) {
-            hr = sfloat(data[idx], data[idx + 1])
-        }
-
-        val reading = BpReading(sys = sys, dia = dia, map = map, hr = hr)
+        // Delegate to BpParser for testable, standalone parsing logic.
+        // BpParser handles SFLOAT decoding, special values, and packet structure.
+        val reading = BpParser.parseMeasurement(data) ?: return
         _state.update { it.copy(lastReading = reading) }
         scheduleFinalize()
     }
