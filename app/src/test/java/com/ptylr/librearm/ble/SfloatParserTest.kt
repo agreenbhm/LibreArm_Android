@@ -77,9 +77,17 @@ class SfloatParserTest {
     }
 
     @Test
-    fun `decode positive infinity returns NaN`() {
+    fun `decode positive infinity returns infinity`() {
         // +INFINITY: mantissa=0x07FE
-        assertTrue(BpParser.decodeSfloat(0xFE.toByte(), 0x07).isNaN())
+        val result = BpParser.decodeSfloat(0xFE.toByte(), 0x07)
+        assertTrue(result.isInfinite() && result > 0)
+    }
+
+    @Test
+    fun `decode negative infinity returns negative infinity`() {
+        // -INFINITY: mantissa=0x0802
+        val result = BpParser.decodeSfloat(0x02, 0x08)
+        assertTrue(result.isInfinite() && result < 0)
     }
 
     @Test

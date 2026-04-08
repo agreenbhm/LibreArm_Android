@@ -12,19 +12,41 @@ object BpParser {
     /**
      * Decode an IEEE 11073 SFLOAT (16-bit) value from two bytes.
      *
+     * SFLOAT format: [EEEE MMMM MMMM MMMM]
+     *   E = 4-bit signed exponent (-8 to +7)
+     *   M = 12-bit signed mantissa (-2048 to +2047)
+     *   value = mantissa × 10^exponent
+     *
+     * Special reserved mantissa values per IEEE 11073-20601:
+     *   0x07FF = NaN
+     *   0x0800 = NRes (Not at this Resolution)
+     *   0x07FE = +INFINITY
+     *   0x0802 = -INFINITY
+     *
      * @param lo Low byte (first byte on wire, little-endian)
      * @param hi High byte (second byte on wire)
-     * @return Decoded double value, or Double.NaN for special SFLOAT values
+     * @return Decoded double value, or Double.NaN/Infinity for special SFLOAT values
      */
     fun decodeSfloat(lo: Byte, hi: Byte): Double {
-        val raw = (hi.toInt() and 0xFF shl 8) or (lo.toInt() and 0xFF)
-        val mantissa = raw and 0x0FFF
+        val raw = ((hi.toInt() and 0xFF) shl 8) or (lo.toInt() and 0xFF)
+        val unsignedMantissa = raw and 0x0FFF
 
-        // Special values: NaN (0x07FF), NRes (0x0800), +INF (0x07FE), -INF (0x0802)
-        if (mantissa >= 0x07FE) return Double.NaN
+        // Check for reserved special values (exact matches only)
+        when (unsignedMantissa) {
+            0x07FF -> return Double.NaN
+            0x0800 -> return Double.NaN              // NRes
+            0x07FE -> return Double.POSITIVE_INFINITY
+            0x0802 -> return Double.NEGATIVE_INFINITY
+        }
 
-        val exponent = raw shr 12
-        val signedMantissa = if (mantissa >= 0x0800) mantissa - 0x1000 else mantissa
+        // Extract and sign-extend the 4-bit exponent (top nibble of the 16-bit value)
+        val unsignedExponent = (raw shr 12) and 0xF
+        val exponent = if (unsignedExponent >= 8) unsignedExponent - 16 else unsignedExponent
+
+        // Sign-extend the 12-bit mantissa
+        val signedMantissa =
+            if (unsignedMantissa >= 0x0800) unsignedMantissa - 0x1000 else unsignedMantissa
+
         return signedMantissa * 10.0.pow(exponent.toDouble())
     }
 
