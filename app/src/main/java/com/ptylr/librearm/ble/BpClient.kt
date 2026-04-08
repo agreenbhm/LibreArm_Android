@@ -25,7 +25,6 @@ import com.ptylr.librearm.model.BpState
 import com.ptylr.librearm.model.MeasurementMode
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import kotlin.math.pow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -54,6 +53,7 @@ class BpClient(
     private var gatt: BluetoothGatt? = null
     private var measurementCharacteristic: BluetoothGattCharacteristic? = null
     private var controlCharacteristic: BluetoothGattCharacteristic? = null
+    private var batteryCharacteristic: BluetoothGattCharacteristic? = null
 
     private var connectTimeoutJob: Job? = null
     private var finalizeJob: Job? = null
@@ -66,10 +66,16 @@ class BpClient(
 
     private val completionDebounceSeconds = 1.5
 
+    // Battery state tracking — only notify on state transitions (v1.4.0 parity)
+    private enum class BatteryState { UNKNOWN, NORMAL, LOW, CRITICAL }
+    private var lastBatteryState = BatteryState.UNKNOWN
+
     // UUIDs
     private val bpsService = UUID.fromString("00001810-0000-1000-8000-00805f9b34fb")
     private val measurement = UUID.fromString("00002a35-0000-1000-8000-00805f9b34fb")
     private val control = UUID.fromString("583CB5B3-875D-40ED-9098-C39EB0C1983D")
+    private val batteryService = UUID.fromString("0000180f-0000-1000-8000-00805f9b34fb")
+    private val batteryLevel = UUID.fromString("00002a19-0000-1000-8000-00805f9b34fb")
 
     private val startCommand = byteArrayOf(0xF1.toByte(), 0x01)
     private val cancelCommand = byteArrayOf(0xF1.toByte(), 0x02)
@@ -120,6 +126,14 @@ class BpClient(
 
     fun startMeasurement() {
         if (!_state.value.canMeasure || _state.value.isMeasuring) return
+
+        // Block measurement on critical battery (mirroring iOS BPClient line 190-193)
+        val battery = _state.value.batteryLevel
+        if (battery != null && battery <= 10) {
+            _state.update { it.copy(status = "Battery critical ($battery%). Replace batteries to measure.") }
+            return
+        }
+        readBatteryLevel()
 
         sessionActive = true
         hasFiredFinal = false
@@ -229,12 +243,16 @@ class BpClient(
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 measurementCharacteristic = null
                 controlCharacteristic = null
+                batteryCharacteristic = null
+                lastBatteryState = BatteryState.UNKNOWN
                 _state.update {
                     it.copy(
                         isConnected = false,
                         canMeasure = false,
                         isMeasuring = false,
-                        status = "Disconnected"
+                        status = "Disconnected",
+                        batteryLevel = null,
+                        batteryStatusLine = "Battery: unavailable"
                     )
                 }
             }
@@ -248,6 +266,12 @@ class BpClient(
             } else {
                 _state.update { it.copy(status = "Blood Pressure service not found") }
             }
+
+            // Discover battery service (optional — device may not expose it)
+            val batService = gatt.getService(batteryService)
+            if (batService != null) {
+                setupBatteryCharacteristic(gatt, batService)
+            }
         }
 
         @SuppressLint("MissingPermission")
@@ -255,6 +279,23 @@ class BpClient(
             if (characteristic.uuid == measurement) {
                 val data = characteristic.value ?: return
                 parseMeasurement(data)
+            } else if (characteristic.uuid == batteryLevel) {
+                val data = characteristic.value
+                if (data != null && data.isNotEmpty()) {
+                    val level = data[0].toInt() and 0xFF
+                    if (level in 0..100) updateBatteryStatus(level)
+                }
+            }
+        }
+
+        @Deprecated("Deprecated in API 33")
+        override fun onCharacteristicRead(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic, status: Int) {
+            if (status == BluetoothGatt.GATT_SUCCESS && characteristic.uuid == batteryLevel) {
+                val data = characteristic.value
+                if (data != null && data.isNotEmpty()) {
+                    val level = data[0].toInt() and 0xFF
+                    if (level in 0..100) updateBatteryStatus(level)
+                }
             }
         }
 
@@ -288,31 +329,29 @@ class BpClient(
         _state.update { it.copy(canMeasure = ready, status = if (ready) "Connected — ready" else "Discovering…") }
     }
 
+    @SuppressLint("MissingPermission")
+    private fun setupBatteryCharacteristic(gatt: BluetoothGatt, service: BluetoothGattService) {
+        batteryCharacteristic = service.getCharacteristic(batteryLevel) ?: return
+
+        // Read initial battery level
+        gatt.readCharacteristic(batteryCharacteristic!!)
+
+        // Subscribe to notifications if the characteristic supports it
+        val char = batteryCharacteristic!!
+        if (char.properties and BluetoothGattCharacteristic.PROPERTY_NOTIFY != 0) {
+            gatt.setCharacteristicNotification(char, true)
+            val descriptor = char.getDescriptor(UUID.fromString(CLIENT_CONFIG_UUID))
+            descriptor?.let {
+                it.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                gatt.writeDescriptor(it)
+            }
+        }
+    }
+
     private fun parseMeasurement(data: ByteArray) {
-        if (data.size < 7) return
-
-        fun sfloat(lo: Byte, hi: Byte): Double {
-            val raw = (hi.toInt() and 0xFF shl 8) or (lo.toInt() and 0xFF)
-            val mantissa = raw and 0x0FFF
-            val exponent = raw shr 12
-            val m = if (mantissa >= 0x0800) mantissa - 0x1000 else mantissa
-            return m * 10.0.pow(exponent.toDouble())
-        }
-
-        val flags = data[0].toInt()
-        val sys = sfloat(data[1], data[2])
-        val dia = sfloat(data[3], data[4])
-        val map = sfloat(data[5], data[6])
-
-        var idx = 7
-        if (flags and 0x02 != 0) idx += 7 // timestamp present
-
-        var hr: Double? = null
-        if (flags and 0x04 != 0 && data.size >= idx + 2) {
-            hr = sfloat(data[idx], data[idx + 1])
-        }
-
-        val reading = BpReading(sys = sys, dia = dia, map = map, hr = hr)
+        // Delegate to BpParser for testable, standalone parsing logic.
+        // BpParser handles SFLOAT decoding, special values, and packet structure.
+        val reading = BpParser.parseMeasurement(data) ?: return
         _state.update { it.copy(lastReading = reading) }
         scheduleFinalize()
     }
@@ -351,6 +390,7 @@ class BpClient(
         sessionActive = false
         hasFiredFinal = true
         _state.update { it.copy(status = "Connected — ready", isMeasuring = false) }
+        readBatteryLevel()
         onFinalReading?.invoke(reading)
     }
 
@@ -406,6 +446,46 @@ class BpClient(
         if (!reading.sys.isFinite() || !reading.dia.isFinite()) return false
         return reading.sys in 60.0..260.0 && reading.dia in 40.0..160.0
     }
+
+    // MARK: - Battery Management (v1.4.0 parity with iOS BPClient)
+
+    @SuppressLint("MissingPermission")
+    private fun readBatteryLevel() {
+        val char = batteryCharacteristic ?: return
+        gatt?.readCharacteristic(char)
+    }
+
+    /**
+     * Update battery state and emit status line.
+     * Only triggers notification callbacks on state transitions (not every read).
+     */
+    internal fun updateBatteryStatus(level: Int) {
+        val newState = when {
+            level <= 10 -> BatteryState.CRITICAL
+            level <= 20 -> BatteryState.LOW
+            else -> BatteryState.NORMAL
+        }
+
+        val statusLine = when (newState) {
+            BatteryState.CRITICAL -> "Battery: $level% (Critical)"
+            BatteryState.LOW -> "Battery: $level% (Low)"
+            BatteryState.NORMAL -> "Battery: $level%"
+            BatteryState.UNKNOWN -> "Battery: unavailable"
+        }
+
+        // Notify on state degradation transitions only
+        if (newState != lastBatteryState && lastBatteryState != BatteryState.UNKNOWN) {
+            if (newState == BatteryState.CRITICAL || newState == BatteryState.LOW) {
+                onBatteryWarning?.invoke(level, newState == BatteryState.CRITICAL)
+            }
+        }
+        lastBatteryState = newState
+
+        _state.update { it.copy(batteryLevel = level, batteryStatusLine = statusLine) }
+    }
+
+    /** Callback for battery warnings — set by the Activity to show notifications */
+    var onBatteryWarning: ((level: Int, isCritical: Boolean) -> Unit)? = null
 
     companion object {
         private const val CLIENT_CONFIG_UUID = "00002902-0000-1000-8000-00805f9b34fb"

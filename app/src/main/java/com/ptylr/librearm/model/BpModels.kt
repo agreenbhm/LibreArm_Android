@@ -16,5 +16,7 @@ data class BpState(
     val canMeasure: Boolean = false,
     val isMeasuring: Boolean = false,
     val measurementMode: MeasurementMode = MeasurementMode.SINGLE,
-    val delayBetweenRunsSeconds: Int = 15
+    val delayBetweenRunsSeconds: Int = 15,
+    val batteryLevel: Int? = null,
+    val batteryStatusLine: String = "Battery: unavailable"
 )
