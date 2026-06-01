@@ -1,6 +1,6 @@
 # Privacy Policy for LibreArm_Android
 
-Effective date: December 17, 2025
+Last updated: May 27, 2026
 
 LibreArm_Android is an open-source Android application that connects to a QardioArm blood pressure monitor over Bluetooth and optionally saves readings into Google Health Connect.  
 This app is developed and maintained by independent contributors, and is not affiliated with or endorsed by Qardio, Inc.
@@ -22,7 +22,10 @@ LibreArm_Android does **not** collect, transmit, or store any personal informati
 - LibreArm requests permission to **write** the following data types to Google Health Connect:
     - Blood Pressure (systolic and diastolic)
     - Heart Rate
-- LibreArm_Android does not read, share, or sell any Health Connect data.
+- LibreArm requests permission to **read** the following data types from Google Health Connect, solely to display your measurement history within the app:
+    - Blood Pressure (systolic and diastolic)
+    - Heart Rate
+- LibreArm_Android does not share or sell any Health Connect data.
 - Health data access is managed entirely through Google's Health Connect APIs.
 
 ---
@@ -38,6 +41,16 @@ LibreArm_Android does **not** collect, transmit, or store any personal informati
 
 - LibreArm_Android does **not** share your data with third parties.
 - No analytics, advertising, or tracking tools are included.
+- LibreArm_Android does not transfer or sell your health data to third parties (advertising platforms, data brokers, or resellers), use it for advertising (including personalized ads), or use it to determine credit-worthiness, insurance eligibility, employment suitability, or for lending.
+
+---
+
+## Data Retention and Deletion
+
+- LibreArm_Android keeps no copy of your blood pressure or heart rate readings. Readings you choose to save are stored in **Google Health Connect**, under your control.
+- The only data stored on your device is your app settings (Health Connect save toggle, readings-per-measurement count, delay, and theme).
+- You can view and delete your health data at any time through Google Health Connect; LibreArm_Android holds no separate copy to delete.
+- Uninstalling the app removes its settings; data already saved to Health Connect remains managed by Health Connect.
 
 ---
 

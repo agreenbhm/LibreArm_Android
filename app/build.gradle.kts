@@ -1,27 +1,25 @@
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
     namespace = "com.ptylr.librearm"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.ptylr.librearm"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.3.0"
+        targetSdk = 36
+        versionCode = 3
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
     }
 
     signingConfigs {
         create("sharedDebug") {
+            // Convenience config so forks/PR builds can sign locally using the in-repo debug keystore.
             storeFile = file("${rootDir}/debug.keystore")
             storePassword = "android"
             keyAlias = "androiddebugkey"
@@ -42,45 +40,49 @@ android {
             signingConfig = signingConfigs.getByName("sharedDebug")
         }
     }
+
+    lint {
+        // Our code is lint-clean: BLE/notification calls that lint flags for
+        // MissingPermission are @SuppressLint-annotated where the runtime guard
+        // lives in a helper lint can't follow. Fail the build on any lint error.
+        abortOnError = true
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
     buildFeatures {
         compose = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
-    implementation("androidx.core:core-ktx:1.12.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.8.2")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3:1.2.0")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-    implementation("androidx.compose.material:material-icons-extended:1.6.2")
-    implementation("com.google.android.material:material:1.11.0")
-    implementation("androidx.health.connect:connect-client:1.1.0-alpha06")
-
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.1.5")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
-    debugImplementation("androidx.compose.ui:ui-tooling")
-    debugImplementation("androidx.compose.ui:ui-test-manifest")
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.process)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.compose.ui)
+    implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.extended)
+    implementation(libs.google.material)
+    implementation(libs.androidx.health.connect.client)
 }
+
+// Bundle the canonical privacy policy so the in-app viewer can show it offline
+// (the app holds no INTERNET permission). PRIVACY.md at the repo root stays the
+// single source; this copies it into assets at build time.
+val copyPrivacyPolicy by tasks.registering(Copy::class) {
+    from(rootProject.file("PRIVACY.md"))
+    into(layout.projectDirectory.dir("src/main/assets"))
+    rename { "privacy_policy.md" }
+}
+tasks.named("preBuild") { dependsOn(copyPrivacyPolicy) }

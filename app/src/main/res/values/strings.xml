@@ -1,3 +1,144 @@
 <resources>
     <string name="app_name">LibreArm</string>
+
+    <!-- Top bar -->
+    <string name="screen_subtitle">Blood Pressure</string>
+
+    <!-- Reading display -->
+    <string name="reading_format">%1$d/%2$d mmHg</string>
+    <string name="reading_with_hr_format">%1$d/%2$d mmHg · %3$d bpm</string>
+    <string name="reading_map_format">%1$d MAP</string>
+    <string name="reading_bpm_format">%1$d bpm</string>
+    <string name="reading_none_yet">No reading yet</string>
+
+    <!-- Buttons -->
+    <string name="action_start_measurement">Start Measurement</string>
+    <string name="action_stop_measurement">Stop Measurement</string>
+    <string name="action_retry_connect">Retry Connect</string>
+
+    <!-- Guest mode (take readings without saving them to your history) -->
+    <string name="guest_mode_label">Guest mode</string>
+    <string name="guest_mode_hint">Take readings without saving them to your history</string>
+    <string name="guest_mode_banner">Guest mode on — readings won\'t be saved</string>
+
+    <!-- Settings -->
+    <string name="setting_save_to_health">Save to Health Connect</string>
+    <string name="setting_readings_per_measurement">Readings per measurement</string>
+    <string name="setting_readings_per_measurement_hint">When more than one is selected, the readings are averaged.</string>
+    <string name="setting_delay_between_readings">Delay between readings (seconds)</string>
+    <string name="delay_format">%1$ds</string>
+    <string name="count_format">%1$d</string>
+
+    <!-- Health Connect availability hints -->
+    <string name="hc_toggle_to_request">Toggle to request access</string>
+    <string name="hc_install">Install Health Connect to save readings</string>
+    <string name="hc_update">Update Health Connect to continue</string>
+    <string name="hc_unavailable">Health Connect not available</string>
+    <string name="toast_hc_permission_missing">Health Connect permission missing</string>
+    <string name="toast_reading_invalid">Reading looks invalid; not saved</string>
+
+    <!-- Status messages (BpStatus) -->
+    <string name="status_searching">Searching for device…</string>
+    <string name="status_connecting">Connecting…</string>
+    <string name="status_discovering">Connected — discovering…</string>
+    <string name="status_ready">Connected — ready</string>
+    <string name="status_disconnected">Disconnected</string>
+    <string name="status_bluetooth_unavailable">Bluetooth unavailable</string>
+    <string name="status_bluetooth_permission_required">Bluetooth permission required</string>
+    <string name="status_not_connected_timeout">Not connected (timeout). Check power &amp; Bluetooth.</string>
+    <string name="status_bp_service_not_found">Blood Pressure service not found</string>
+    <string name="status_measuring">Measuring…</string>
+    <string name="status_measuring_run">Measuring (run %1$d of %2$d)…</string>
+    <string name="status_countdown">Measured run %1$d of %2$d — next in %3$ds…</string>
+    <string name="status_battery_critical_blocked">Battery critical (%1$d%%). Replace batteries to measure.</string>
+    <string name="status_measurement_invalid">Measurement invalid or incomplete — please try again. Check cuff fit and battery.</string>
+    <string name="status_average_session_invalid">Average session invalid — not all readings were valid. Please try again.</string>
+    <string name="status_average_reading_invalid">Average reading invalid — please try again.</string>
+    <string name="status_retry_prompt_single">Reading was invalid.</string>
+    <string name="status_retry_prompt_multi">Reading %1$d of %2$d was invalid.</string>
+    <string name="status_retry_limit_exceeded">Too many invalid readings in a row — session cancelled. Please try again.</string>
+    <string name="status_notify_error">Notify error: %1$d</string>
+
+    <!-- Retry / cancel prompt dialog -->
+    <string name="retry_dialog_title">Reading invalid</string>
+    <string name="retry_dialog_message_single">The reading didn\'t pass validation. Retry this measurement or cancel?</string>
+    <string name="retry_dialog_message_multi">Reading %1$d of %2$d didn\'t pass validation. Retry just this reading, or cancel the whole session?</string>
+    <string name="retry_dialog_retry">Retry</string>
+    <string name="retry_dialog_cancel">Cancel</string>
+
+    <!-- Battery line (BatteryStatus) -->
+    <string name="battery_unavailable">Battery: unavailable</string>
+    <string name="battery_normal">Battery: %1$d%%</string>
+    <string name="battery_low">Battery: %1$d%% (Low)</string>
+    <string name="battery_critical">Battery: %1$d%% (Critical)</string>
+
+    <!-- History screen -->
+    <string name="history_prev_month">Previous month</string>
+    <string name="history_next_month">Next month</string>
+    <string name="history_tab_calendar">Calendar</string>
+    <string name="history_tab_trends">Trends</string>
+    <string name="history_no_readings_month">No readings recorded this month.</string>
+    <string name="history_no_chart">No readings to chart this month.</string>
+    <string name="history_legend_systolic">Systolic</string>
+    <string name="history_legend_diastolic">Diastolic</string>
+    <string name="history_legend_heart_rate">Heart rate</string>
+    <string name="history_summary_title">Summary</string>
+    <string name="history_summary_sys">Systolic — avg %1$d, range %2$d–%3$d mmHg</string>
+    <string name="history_summary_dia">Diastolic — avg %1$d, range %2$d–%3$d mmHg</string>
+    <string name="history_summary_hr">Heart rate — avg %1$d, range %2$d–%3$d bpm</string>
+    <string name="history_summary_days">%1$d day(s) with readings</string>
+    <string name="history_reading_recorded">Reading recorded</string>
+    <string name="history_recent_readings">Recent Readings</string>
+    <string name="history_month_year_format">MMMM yyyy</string>
+    <string name="history_short_format">MMM yyyy</string>
+    <string name="history_entry_format">MMM d  HH:mm</string>
+    <string name="history_read_permission_title">Health Connect read access needed</string>
+    <string name="history_read_permission_install_title">Health Connect required</string>
+    <string name="history_read_permission_body">Grant read access to Blood Pressure records in Health Connect to see your history.</string>
+    <string name="history_read_permission_denied_body">Access was denied. Health Connect won\'t prompt again — open it directly to grant Blood Pressure read access for LibreArm.</string>
+    <string name="history_read_permission_install_body">LibreArm uses Health Connect to store and read your blood pressure history. Install or update it to continue.</string>
+    <string name="history_read_permission_grant">Grant access</string>
+    <string name="history_read_permission_open_hc">Open Health Connect</string>
+    <string name="history_read_permission_install">Install Health Connect</string>
+    <string name="history_tap_day_hint">Tap a date to see its readings</string>
+    <string name="history_hr_permission_banner_body">Grant Heart Rate read access in Health Connect to see pulse alongside your readings.</string>
+    <string name="history_hr_permission_banner_action">Open</string>
+    <string name="history_day_detail_format">EEEE, MMM d</string>
+    <string name="history_time_only_format">HH:mm</string>
+
+    <!-- Footer -->
+    <string name="footer_credits">Original iOS app by Paul Taylor — Android port by agreenbhm</string>
+    <string name="link_ios_github">iOS GitHub</string>
+    <string name="link_android_github">Android GitHub</string>
+    <string name="link_privacy_policy">Privacy Policy</string>
+
+    <!-- Bottom navigation destinations -->
+    <string name="nav_home">Home</string>
+    <string name="nav_history">History</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_about">About</string>
+
+    <!-- About screen -->
+    <string name="about_app_version">Version %1$s</string>
+    <string name="about_section_app">About this app</string>
+    <string name="about_section_links">Source</string>
+    <string name="about_description">Open-source Android port of LibreArm. Connects directly to the QardioArm blood pressure monitor over Bluetooth Low Energy and writes readings to, and reads your history from, Health Connect.</string>
+
+    <!-- Settings screen -->
+    <string name="settings_section_measurement">Measurement</string>
+    <string name="settings_section_storage">Storage</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="setting_theme">Theme</string>
+    <string name="theme_auto">Auto</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+
+    <!-- Hypertension graph -->
+    <string name="graph_zone_stage2">High: Stage 2 Hypertension</string>
+    <string name="graph_zone_stage1">High: Stage 1 Hypertension</string>
+    <string name="graph_zone_prehypertension">Prehypertension</string>
+    <string name="graph_zone_normal">Normal</string>
+    <string name="graph_zone_low">Low</string>
+    <string name="graph_diastolic">Diastolic (mmHg)</string>
+    <string name="graph_systolic">Systolic (mmHg)</string>
 </resources>
